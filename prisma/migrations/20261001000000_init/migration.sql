@@ -1,0 +1,1 @@
+-- Create via prisma migrate dev after setting up database
