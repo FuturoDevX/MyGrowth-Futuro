@@ -10,7 +10,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     await requireManagerOrAdminForEvent(params.id);
     const data = await parseJson(req, schema);
-    const ids = data.participantIds.filter((id) => !data.excludeIds.includes(id));
+    const excludeIds = data.excludeIds ?? [];
+    const ids = data.participantIds.filter((id) => !excludeIds.includes(id));
 
     await prisma.$transaction(
       ids.map((participantId) =>

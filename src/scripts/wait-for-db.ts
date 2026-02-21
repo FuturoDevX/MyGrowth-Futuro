@@ -1,4 +1,4 @@
-import { Client } from 'pg';
+import { PrismaClient } from '@prisma/client';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -13,26 +13,23 @@ async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function check() {
-  const client = new Client({ connectionString });
-  await client.connect();
-  await client.query('select 1');
-  await client.end();
-}
-
 async function main() {
+  const prisma = new PrismaClient();
   const started = Date.now();
+
   while (Date.now() - started < timeoutMs) {
     try {
-      await check();
+      await prisma.$runCommandRaw({ ping: 1 });
+      await prisma.$disconnect();
       console.log('Database is ready.');
       return;
-    } catch (error) {
+    } catch {
       console.log('Waiting for database...');
       await sleep(sleepMs);
     }
   }
 
+  await prisma.$disconnect();
   console.error(`Database did not become ready within ${timeoutMs}ms.`);
   process.exit(1);
 }

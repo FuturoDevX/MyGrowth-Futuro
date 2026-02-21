@@ -15,9 +15,22 @@ const schema = z.object({
   deliveryMode: z.enum(['IN_PERSON', 'ONLINE'])
 });
 
+type FormValues = z.infer<typeof schema>;
+
 export default function NewEventPage() {
   const router = useRouter();
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: { deliveryMode: 'IN_PERSON' } });
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      title: '',
+      eventDate: '',
+      startTime: '',
+      endTime: '',
+      facilitator: '',
+      trainingTypeId: '',
+      deliveryMode: 'IN_PERSON'
+    }
+  });
 
   return (
     <form

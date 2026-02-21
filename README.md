@@ -4,33 +4,32 @@ Production-oriented multi-centre professional development and compliance platfor
 
 ## Stack
 - Next.js App Router + TypeScript + Tailwind + React Hook Form + Zod
-- Prisma (current schema uses PostgreSQL)
+- Prisma + MongoDB
 - NextAuth credentials auth
-- pg-boss jobs
+- Background jobs worker (`npm run jobs`)
 - S3 signed uploads (local fallback)
 - Resend/SMTP email fallback
 - Vitest + Playwright
 
-## What to do to make this work (fastest path)
-1. **Use Docker path first**.
-2. `cp .env.example .env`
-3. `docker compose up --build`
-4. Open app at `http://localhost:3000`
-5. Check health at `http://localhost:3000/api/health`
-6. Login with seeded credentials:
+## Quick start (MongoDB)
+1. `cp .env.example .env`
+2. `docker compose up --build`
+3. Open app at `http://localhost:3000`
+4. Check health at `http://localhost:3000/api/health`
+5. Login with seeded credentials:
    - `admin@futuro.local` / `Password123!`
    - `educator@futuro.local` / `Password123!`
-7. Optional dev email inbox at `http://localhost:8025` (MailHog).
+6. Optional dev email inbox at `http://localhost:8025` (MailHog).
 
-### Why this is now more reliable
-- Compose waits for Postgres health before app/worker starts.
-- App/worker run an explicit DB readiness script before Prisma commands.
-- First boot uses `prisma db push` + `seed` while migration SQL is still scaffolded.
+### Why this is reliable
+- Compose waits for MongoDB health before app/worker starts.
+- App/worker run explicit DB readiness check before Prisma commands.
+- First boot uses `prisma db push` + `seed`.
 
-## Local (non-docker) run
+## Local run (without Docker)
 ```bash
 cp .env.example .env
-# IMPORTANT: swap DATABASE_URL host from db -> localhost in .env
+# IMPORTANT: swap DATABASE_URL host from mongo -> localhost in .env
 npm install
 npm run db:wait
 npm run prisma:generate
@@ -39,6 +38,25 @@ npm run seed
 npm run dev
 ```
 
+Run worker separately (for reminders/overdues):
+```bash
+npm run jobs
+```
+
+## Vercel + MongoDB Atlas (production)
+1. Create a MongoDB Atlas cluster and database.
+2. Set `DATABASE_URL` in Vercel to your Atlas connection string (`mongodb+srv://...`).
+3. Add all required env vars from `.env.example` in Vercel project settings.
+4. Deploy the app (repo includes `vercel.json`).
+5. Run schema sync once against production DB:
+   ```bash
+   DATABASE_URL='<atlas-url>' npx prisma db push
+   ```
+6. Seed production only if needed:
+   ```bash
+   DATABASE_URL='<atlas-url>' npm run seed
+   ```
+7. Run `npm run jobs` on a separate always-on worker host (Railway/Fly/Render/VM); do not rely on Vercel serverless for long-running workers.
 
 ## Production hardening added
 - Centralized API error handling with structured HTTP responses (`ApiError` + handler).
@@ -48,28 +66,8 @@ npm run dev
 
 ## Troubleshooting
 - If login fails, confirm `NEXTAUTH_SECRET` in `.env` is set and restart app.
-- If DB connection fails locally, verify Postgres is running and `.env` uses `localhost` host.
+- If DB connection fails locally, verify MongoDB is running and `.env` uses `localhost` host.
 - If npm install fails due registry policy, run from your local machine/CI with npm registry access.
-
-## Architecture
-- `src/app/*`: UI routes and API routes
-- `src/lib/*`: auth/RBAC, prisma client, storage, email helpers
-- `src/jobs/worker.ts`: background worker (reminders, overdue reflections)
-- `src/scripts/wait-for-db.ts`: DB readiness check used in local/docker startup
-- `prisma/schema.prisma`: data model for orgs, centres, participants, training, attendance, reflections, certificates
-
-## Core flows implemented
-1. Credentials login with session/JWT and role-aware pages.
-2. Event creation, targeted invite creation (with exclusion/offboarding-safe list), RSVP, attendance bulk update.
-3. Attendance ATTENDED auto-creates completion and reflection (for reflection-required training types).
-4. Reflection submission with participant-only ownership checks.
-5. Trainer-token certificate upload endpoint.
-6. CSV reporting endpoints: completions and payment preferences export.
-
-## Jobs
-```bash
-npm run jobs
-```
 
 ## Test commands
 ```bash
@@ -77,17 +75,6 @@ npm run test
 npm run test:e2e
 npm run build
 ```
-
-## Deployment notes
-- **Vercel (recommended app hosting)**
-  - This repository now includes `vercel.json` for Next.js deployment.
-  - Set env vars from `.env.example` in your Vercel project.
-  - Build command is `npm run prisma:generate && npm run build`.
-- **MongoDB + Vercel option**
-  - If you want MongoDB Atlas on Vercel, set `DATABASE_URL` to your Atlas connection string.
-  - You must also migrate `prisma/schema.prisma` from the PostgreSQL provider to MongoDB before production use.
-  - Keep the worker (`npm run jobs`) on a separate always-on runner (not Vercel serverless).
-- Fly.io: deploy app container + worker process; attach your database and object storage.
 
 ## Required env vars
 See `.env.example`.

@@ -1,10 +1,22 @@
 import { hash } from 'bcryptjs';
 import { prisma } from '../src/lib/prisma';
 
+async function getOrCreateOrganisation() {
+  const existing = await prisma.organisation.findFirst({ where: { name: 'Futuro Education Group' } });
+  if (existing) return existing;
+  return prisma.organisation.create({ data: { name: 'Futuro Education Group' } });
+}
+
+async function getOrCreateCentre(name: string, organisationId: string) {
+  const existing = await prisma.centre.findFirst({ where: { organisationId, name } });
+  if (existing) return existing;
+  return prisma.centre.create({ data: { name, organisationId } });
+}
+
 async function main() {
-  const org = await prisma.organisation.upsert({ where: { id: 'org_seed' }, update: {}, create: { id: 'org_seed', name: 'Futuro Education Group' } });
-  const centreA = await prisma.centre.upsert({ where: { id: 'centre_a' }, update: {}, create: { id: 'centre_a', name: 'Futuro Carlton', organisationId: org.id } });
-  await prisma.centre.upsert({ where: { id: 'centre_b' }, update: {}, create: { id: 'centre_b', name: 'Futuro Richmond', organisationId: org.id } });
+  const org = await getOrCreateOrganisation();
+  const centreA = await getOrCreateCentre('Futuro Carlton', org.id);
+  await getOrCreateCentre('Futuro Richmond', org.id);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@futuro.local' },
@@ -24,26 +36,43 @@ async function main() {
     create: { organisationId: org.id, centreId: centreA.id, userId: educator.id, name: 'Educator Jane', email: 'educator@futuro.local', participantType: 'STAFF' }
   });
 
-  await prisma.trainingType.createMany({ data: [
-    'First Aid','Anaphylaxis','CPR','Child Protection','Food Safety','Team Meeting','Programme/Practice PD','Induction','Other'
-  ].map((name) => ({ name, requiresReflection: name.includes('PD') })), skipDuplicates: true });
+  for (const name of ['First Aid', 'Anaphylaxis', 'CPR', 'Child Protection', 'Food Safety', 'Team Meeting', 'Programme/Practice PD', 'Induction', 'Other']) {
+    await prisma.trainingType.upsert({
+      where: { name },
+      update: {},
+      create: { name, requiresReflection: name.includes('PD') }
+    });
+  }
 
   const pdType = await prisma.trainingType.findFirstOrThrow({ where: { name: 'Programme/Practice PD' } });
-  const event = await prisma.trainingEvent.create({
-    data: {
+
+  let event = await prisma.trainingEvent.findFirst({
+    where: {
       organisationId: org.id,
       centreId: centreA.id,
       trainingTypeId: pdType.id,
-      title: 'Quality Practice Workshop',
-      eventDate: new Date(),
-      startTime: '09:00',
-      endTime: '11:00',
-      facilitator: 'Lead EL',
-      deliveryMode: 'IN_PERSON',
-      roleRequired: ['EDUCATOR'],
-      paymentPreferenceEnabled: true
+      title: 'Quality Practice Workshop'
     }
   });
+
+  if (!event) {
+    event = await prisma.trainingEvent.create({
+      data: {
+        organisationId: org.id,
+        centreId: centreA.id,
+        trainingTypeId: pdType.id,
+        title: 'Quality Practice Workshop',
+        eventDate: new Date(),
+        startTime: '09:00',
+        endTime: '11:00',
+        facilitator: 'Lead EL',
+        deliveryMode: 'IN_PERSON',
+        roleRequired: ['EDUCATOR'],
+        paymentPreferenceEnabled: true,
+        createdBy: admin.id
+      }
+    });
+  }
 
   await prisma.trainingInvite.upsert({
     where: { trainingEventId_participantId: { trainingEventId: event.id, participantId: participant.id } },

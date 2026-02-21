@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -60,40 +60,43 @@ enum PaymentPreference {
 }
 
 model Organisation {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
-  centres   Centre[]
-  users     User[]
+  centres      Centre[]
+  users        User[]
+  participants Participant[]
+  events       TrainingEvent[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Centre {
-  id             String             @id @default(cuid())
-  name           String
-  organisationId String
-  organisation   Organisation       @relation(fields: [organisationId], references: [id])
-  participants   Participant[]
-  events         TrainingEvent[]
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  organisationId  String           @db.ObjectId
+  organisation    Organisation     @relation(fields: [organisationId], references: [id])
+  participants    Participant[]
+  events          TrainingEvent[]
   roleAssignments RoleAssignment[]
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([organisationId])
 }
 
 model User {
-  id             String           @id @default(cuid())
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
   email          String           @unique
   name           String
   passwordHash   String
-  organisationId String
+  organisationId String           @db.ObjectId
   organisation   Organisation     @relation(fields: [organisationId], references: [id])
   globalRole     GlobalRole?
   participant    Participant?
   roles          RoleAssignment[]
-  accounts       Account[]
-  sessions       Session[]
+  accounts         Account[]
+  sessions         Session[]
+  facilitatedEvents TrainingEvent[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -101,26 +104,26 @@ model User {
 }
 
 model Participant {
-  id                 String            @id @default(cuid())
-  userId             String?           @unique
-  user               User?             @relation(fields: [userId], references: [id])
-  organisationId     String
-  organisation       Organisation      @relation(fields: [organisationId], references: [id])
-  centreId           String?
-  centre             Centre?           @relation(fields: [centreId], references: [id])
-  name               String
-  email              String
-  participantType    ParticipantType   @default(STAFF)
-  startDate          DateTime?
-  endDate            DateTime?
-  invites            TrainingInvite[]
-  attendanceRecords  Attendance[]
-  reflections        Reflection[]
-  certificates       Certificate[]
-  completions        Completion[]
-  magicTokens        MagicToken[]
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String?         @unique @db.ObjectId
+  user              User?           @relation(fields: [userId], references: [id])
+  organisationId    String          @db.ObjectId
+  organisation      Organisation    @relation(fields: [organisationId], references: [id])
+  centreId          String?         @db.ObjectId
+  centre            Centre?         @relation(fields: [centreId], references: [id])
+  name              String
+  email             String
+  participantType   ParticipantType @default(STAFF)
+  startDate         DateTime?
+  endDate           DateTime?
+  invites           TrainingInvite[]
+  attendanceRecords Attendance[]
+  reflections       Reflection[]
+  certificates      Certificate[]
+  completions       Completion[]
+  magicTokens       MagicToken[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@unique([organisationId, email])
   @@index([centreId])
@@ -128,150 +131,151 @@ model Participant {
 }
 
 model RoleAssignment {
-  id          String    @id @default(cuid())
-  userId      String
-  centreId    String
-  role        CentreRole
-  user        User      @relation(fields: [userId], references: [id])
-  centre      Centre    @relation(fields: [centreId], references: [id])
-  createdAt   DateTime  @default(now())
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String     @db.ObjectId
+  centreId  String     @db.ObjectId
+  role      CentreRole
+  user      User       @relation(fields: [userId], references: [id])
+  centre    Centre     @relation(fields: [centreId], references: [id])
+  createdAt DateTime   @default(now())
 
   @@unique([userId, centreId, role])
   @@index([centreId, role])
 }
 
 model TrainingType {
-  id                 String    @id @default(cuid())
-  name               String    @unique
-  requiresReflection Boolean   @default(false)
-  isMandatory        Boolean   @default(false)
+  id                 String          @id @default(auto()) @map("_id") @db.ObjectId
+  name               String          @unique
+  requiresReflection Boolean         @default(false)
+  isMandatory        Boolean         @default(false)
   events             TrainingEvent[]
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 }
 
 model TrainingEvent {
-  id                       String              @id @default(cuid())
-  organisationId           String
-  organisation             Organisation        @relation(fields: [organisationId], references: [id])
-  centreId                 String?
-  centre                   Centre?             @relation(fields: [centreId], references: [id])
-  trainingTypeId           String
-  trainingType             TrainingType        @relation(fields: [trainingTypeId], references: [id])
+  id                       String          @id @default(auto()) @map("_id") @db.ObjectId
+  organisationId           String          @db.ObjectId
+  organisation             Organisation    @relation(fields: [organisationId], references: [id])
+  centreId                 String?         @db.ObjectId
+  centre                   Centre?         @relation(fields: [centreId], references: [id])
+  trainingTypeId           String          @db.ObjectId
+  trainingType             TrainingType    @relation(fields: [trainingTypeId], references: [id])
   title                    String
   eventDate                DateTime
   startTime                String
   endTime                  String
   facilitator              String
-  facilitatorUserId        String?
-  facilitatorUser          User?               @relation(fields: [facilitatorUserId], references: [id])
+  facilitatorUserId        String?         @db.ObjectId
+  facilitatorUser          User?           @relation(fields: [facilitatorUserId], references: [id])
   deliveryMode             DeliveryMode
   location                 String?
   meetingLink              String?
   capacity                 Int?
   notes                    String?
   externalQuizUrl          String?
-  certificateUploadEnabled Boolean            @default(true)
-  paymentPreferenceEnabled Boolean            @default(false)
-  trainerUploadToken       String              @unique @default(cuid())
+  certificateUploadEnabled Boolean         @default(true)
+  paymentPreferenceEnabled Boolean         @default(false)
+  trainerUploadToken       String          @unique @default(cuid())
   roleRequired             CentreRole[]
   invites                  TrainingInvite[]
   attendanceRecords        Attendance[]
   completions              Completion[]
+  reflections              Reflection[]
   nqsTags                  EventNQSTag[]
   eylfTags                 EventEYLFTag[]
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
-  createdBy                String?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  createdBy                String?         @db.ObjectId
 
   @@index([centreId, eventDate])
   @@index([trainingTypeId, eventDate])
 }
 
 model TrainingInvite {
-  id             String      @id @default(cuid())
-  trainingEventId String
-  participantId  String
-  trainingEvent  TrainingEvent @relation(fields: [trainingEventId], references: [id])
-  participant    Participant   @relation(fields: [participantId], references: [id])
-  rsvpStatus     RSVPStatus?
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  trainingEventId   String            @db.ObjectId
+  participantId     String            @db.ObjectId
+  trainingEvent     TrainingEvent     @relation(fields: [trainingEventId], references: [id])
+  participant       Participant       @relation(fields: [participantId], references: [id])
+  rsvpStatus        RSVPStatus?
   paymentPreference PaymentPreference?
-  paymentNote    String?
-  reminderSentAt DateTime?
-  inviteSentAt   DateTime?
-  createdAt      DateTime   @default(now())
+  paymentNote       String?
+  reminderSentAt    DateTime?
+  inviteSentAt      DateTime?
+  createdAt         DateTime          @default(now())
 
   @@unique([trainingEventId, participantId])
   @@index([participantId])
 }
 
 model Attendance {
-  id             String          @id @default(cuid())
-  trainingEventId String
-  participantId  String
-  trainingEvent  TrainingEvent   @relation(fields: [trainingEventId], references: [id])
-  participant    Participant     @relation(fields: [participantId], references: [id])
-  status         AttendanceStatus
-  markedBy       String?
-  markedAt       DateTime        @default(now())
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  trainingEventId String           @db.ObjectId
+  participantId   String           @db.ObjectId
+  trainingEvent   TrainingEvent    @relation(fields: [trainingEventId], references: [id])
+  participant     Participant      @relation(fields: [participantId], references: [id])
+  status          AttendanceStatus
+  markedBy        String?
+  markedAt        DateTime         @default(now())
 
   @@unique([trainingEventId, participantId])
 }
 
 model Completion {
-  id             String         @id @default(cuid())
-  trainingEventId String
-  participantId  String
-  attendanceId   String?
-  completionDate DateTime
-  verifiedBy     String?
-  proofLink      String?
-  verified       Boolean        @default(false)
-  trainingEvent  TrainingEvent  @relation(fields: [trainingEventId], references: [id])
-  participant    Participant    @relation(fields: [participantId], references: [id])
-  certificate    Certificate?
-  createdAt      DateTime       @default(now())
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  trainingEventId String         @db.ObjectId
+  participantId   String         @db.ObjectId
+  attendanceId    String?        @db.ObjectId
+  completionDate  DateTime
+  verifiedBy      String?
+  proofLink       String?
+  verified        Boolean        @default(false)
+  trainingEvent   TrainingEvent  @relation(fields: [trainingEventId], references: [id])
+  participant     Participant    @relation(fields: [participantId], references: [id])
+  certificate     Certificate?
+  createdAt       DateTime       @default(now())
 
   @@unique([trainingEventId, participantId])
   @@index([participantId, completionDate])
 }
 
 model Reflection {
-  id             String           @id @default(cuid())
-  participantId  String
-  trainingEventId String
-  dueDate        DateTime
-  learned        String?
-  applyPlan      String?
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  participantId   String           @db.ObjectId
+  trainingEventId String           @db.ObjectId
+  dueDate         DateTime
+  learned         String?
+  applyPlan       String?
   nqsPracticeLink String?
-  status         ReflectionStatus @default(NOT_SENT)
-  submittedAt    DateTime?
-  participant    Participant      @relation(fields: [participantId], references: [id])
-  trainingEvent  TrainingEvent    @relation(fields: [trainingEventId], references: [id])
-  evidences      Evidence[]
-  createdAt      DateTime         @default(now())
+  status          ReflectionStatus @default(NOT_SENT)
+  submittedAt     DateTime?
+  participant     Participant      @relation(fields: [participantId], references: [id])
+  trainingEvent   TrainingEvent    @relation(fields: [trainingEventId], references: [id])
+  evidences       Evidence[]
+  createdAt       DateTime         @default(now())
 
   @@unique([participantId, trainingEventId])
   @@index([dueDate, status])
 }
 
 model Evidence {
-  id            String      @id @default(cuid())
-  reflectionId  String?
-  trainingEventId String?
-  completionId  String?
-  fileKey       String
-  fileName      String
-  contentType   String
-  externalUrl   String?
-  reflection    Reflection? @relation(fields: [reflectionId], references: [id])
-  createdAt     DateTime    @default(now())
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  reflectionId    String?     @db.ObjectId
+  trainingEventId String?     @db.ObjectId
+  completionId    String?     @db.ObjectId
+  fileKey         String
+  fileName        String
+  contentType     String
+  externalUrl     String?
+  reflection      Reflection? @relation(fields: [reflectionId], references: [id])
+  createdAt       DateTime    @default(now())
 }
 
 model Certificate {
-  id            String      @id @default(cuid())
-  participantId String
-  completionId  String      @unique
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  participantId String      @db.ObjectId
+  completionId  String      @unique @db.ObjectId
   fileKey       String?
   externalUrl   String?
   uploadedBy    String?
@@ -281,49 +285,51 @@ model Certificate {
 }
 
 model NQSTag {
-  id      String      @id @default(cuid())
-  code    String      @unique
-  name    String
-  events  EventNQSTag[]
+  id     String       @id @default(auto()) @map("_id") @db.ObjectId
+  code   String       @unique
+  name   String
+  events EventNQSTag[]
 }
 
 model EYLFTag {
-  id      String       @id @default(cuid())
-  code    String       @unique
-  name    String
-  events  EventEYLFTag[]
+  id     String        @id @default(auto()) @map("_id") @db.ObjectId
+  code   String        @unique
+  name   String
+  events EventEYLFTag[]
 }
 
 model EventNQSTag {
-  eventId String
-  tagId   String
+  id      String        @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String        @db.ObjectId
+  tagId   String        @db.ObjectId
   event   TrainingEvent @relation(fields: [eventId], references: [id])
   tag     NQSTag        @relation(fields: [tagId], references: [id])
 
-  @@id([eventId, tagId])
+  @@unique([eventId, tagId])
 }
 
 model EventEYLFTag {
-  eventId String
-  tagId   String
+  id      String        @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String        @db.ObjectId
+  tagId   String        @db.ObjectId
   event   TrainingEvent @relation(fields: [eventId], references: [id])
   tag     EYLFTag       @relation(fields: [tagId], references: [id])
 
-  @@id([eventId, tagId])
+  @@unique([eventId, tagId])
 }
 
 model MagicToken {
-  id            String      @id @default(cuid())
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
   token         String      @unique
-  participantId String
+  participantId String      @db.ObjectId
   expiresAt     DateTime
   participant   Participant @relation(fields: [participantId], references: [id])
   createdAt     DateTime    @default(now())
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
   type              String
   provider          String
   providerAccountId String
@@ -334,20 +340,21 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id])
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   sessionToken String   @unique
-  userId       String
+  userId       String   @db.ObjectId
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   identifier String
   token      String   @unique
   expires    DateTime
