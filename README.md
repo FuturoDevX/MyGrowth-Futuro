@@ -4,7 +4,7 @@ Production-oriented multi-centre professional development and compliance platfor
 
 ## Stack
 - Next.js App Router + TypeScript + Tailwind + React Hook Form + Zod
-- Prisma + PostgreSQL
+- Prisma (current schema uses PostgreSQL)
 - NextAuth credentials auth
 - pg-boss jobs
 - S3 signed uploads (local fallback)
@@ -79,8 +79,15 @@ npm run build
 ```
 
 ## Deployment notes
-- Vercel + managed Postgres: set env vars from `.env.example`; switch to `prisma migrate deploy` after generating real migrations.
-- Fly.io: deploy app container + worker process; attach Postgres and object storage.
+- **Vercel (recommended app hosting)**
+  - This repository now includes `vercel.json` for Next.js deployment.
+  - Set env vars from `.env.example` in your Vercel project.
+  - Build command is `npm run prisma:generate && npm run build`.
+- **MongoDB + Vercel option**
+  - If you want MongoDB Atlas on Vercel, set `DATABASE_URL` to your Atlas connection string.
+  - You must also migrate `prisma/schema.prisma` from the PostgreSQL provider to MongoDB before production use.
+  - Keep the worker (`npm run jobs`) on a separate always-on runner (not Vercel serverless).
+- Fly.io: deploy app container + worker process; attach your database and object storage.
 
 ## Required env vars
 See `.env.example`.
