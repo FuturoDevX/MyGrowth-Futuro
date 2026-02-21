@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GlobalRole {
+  ADMIN
+}
+
+enum CentreRole {
+  CM
+  EL
+  EDUCATOR
+}
+
+enum DeliveryMode {
+  IN_PERSON
+  ONLINE
+}
+
+enum RSVPStatus {
+  GOING
+  NOT_GOING
+  MAYBE
+  WAITLIST
+}
+
+enum AttendanceStatus {
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+  LATE
+}
+
+enum ReflectionStatus {
+  NOT_SENT
+  SENT
+  COMPLETED
+  OVERDUE
+}
+
+enum ParticipantType {
+  STAFF
+  VOLUNTEER
+  VISITOR
+  STUDENT
+  CONTRACTOR
+  OTHER
+}
+
+enum PaymentPreference {
+  TIME_IN_LIEU
+  OVERTIME_PAID
+  INCLUDED_IN_SALARY
+  OTHER
+}
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  centres   Centre[]
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Centre {
+  id             String             @id @default(cuid())
+  name           String
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id])
+  participants   Participant[]
+  events         TrainingEvent[]
+  roleAssignments RoleAssignment[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([organisationId])
+}
+
+model User {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  name           String
+  passwordHash   String
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id])
+  globalRole     GlobalRole?
+  participant    Participant?
+  roles          RoleAssignment[]
+  accounts       Account[]
+  sessions       Session[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([organisationId])
+}
+
+model Participant {
+  id                 String            @id @default(cuid())
+  userId             String?           @unique
+  user               User?             @relation(fields: [userId], references: [id])
+  organisationId     String
+  organisation       Organisation      @relation(fields: [organisationId], references: [id])
+  centreId           String?
+  centre             Centre?           @relation(fields: [centreId], references: [id])
+  name               String
+  email              String
+  participantType    ParticipantType   @default(STAFF)
+  startDate          DateTime?
+  endDate            DateTime?
+  invites            TrainingInvite[]
+  attendanceRecords  Attendance[]
+  reflections        Reflection[]
+  certificates       Certificate[]
+  completions        Completion[]
+  magicTokens        MagicToken[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([organisationId, email])
+  @@index([centreId])
+  @@index([participantType])
+}
+
+model RoleAssignment {
+  id          String    @id @default(cuid())
+  userId      String
+  centreId    String
+  role        CentreRole
+  user        User      @relation(fields: [userId], references: [id])
+  centre      Centre    @relation(fields: [centreId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, centreId, role])
+  @@index([centreId, role])
+}
+
+model TrainingType {
+  id                 String    @id @default(cuid())
+  name               String    @unique
+  requiresReflection Boolean   @default(false)
+  isMandatory        Boolean   @default(false)
+  events             TrainingEvent[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model TrainingEvent {
+  id                       String              @id @default(cuid())
+  organisationId           String
+  organisation             Organisation        @relation(fields: [organisationId], references: [id])
+  centreId                 String?
+  centre                   Centre?             @relation(fields: [centreId], references: [id])
+  trainingTypeId           String
+  trainingType             TrainingType        @relation(fields: [trainingTypeId], references: [id])
+  title                    String
+  eventDate                DateTime
+  startTime                String
+  endTime                  String
+  facilitator              String
+  facilitatorUserId        String?
+  facilitatorUser          User?               @relation(fields: [facilitatorUserId], references: [id])
+  deliveryMode             DeliveryMode
+  location                 String?
+  meetingLink              String?
+  capacity                 Int?
+  notes                    String?
+  externalQuizUrl          String?
+  certificateUploadEnabled Boolean            @default(true)
+  paymentPreferenceEnabled Boolean            @default(false)
+  trainerUploadToken       String              @unique @default(cuid())
+  roleRequired             CentreRole[]
+  invites                  TrainingInvite[]
+  attendanceRecords        Attendance[]
+  completions              Completion[]
+  nqsTags                  EventNQSTag[]
+  eylfTags                 EventEYLFTag[]
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  createdBy                String?
+
+  @@index([centreId, eventDate])
+  @@index([trainingTypeId, eventDate])
+}
+
+model TrainingInvite {
+  id             String      @id @default(cuid())
+  trainingEventId String
+  participantId  String
+  trainingEvent  TrainingEvent @relation(fields: [trainingEventId], references: [id])
+  participant    Participant   @relation(fields: [participantId], references: [id])
+  rsvpStatus     RSVPStatus?
+  paymentPreference PaymentPreference?
+  paymentNote    String?
+  reminderSentAt DateTime?
+  inviteSentAt   DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@unique([trainingEventId, participantId])
+  @@index([participantId])
+}
+
+model Attendance {
+  id             String          @id @default(cuid())
+  trainingEventId String
+  participantId  String
+  trainingEvent  TrainingEvent   @relation(fields: [trainingEventId], references: [id])
+  participant    Participant     @relation(fields: [participantId], references: [id])
+  status         AttendanceStatus
+  markedBy       String?
+  markedAt       DateTime        @default(now())
+
+  @@unique([trainingEventId, participantId])
+}
+
+model Completion {
+  id             String         @id @default(cuid())
+  trainingEventId String
+  participantId  String
+  attendanceId   String?
+  completionDate DateTime
+  verifiedBy     String?
+  proofLink      String?
+  verified       Boolean        @default(false)
+  trainingEvent  TrainingEvent  @relation(fields: [trainingEventId], references: [id])
+  participant    Participant    @relation(fields: [participantId], references: [id])
+  certificate    Certificate?
+  createdAt      DateTime       @default(now())
+
+  @@unique([trainingEventId, participantId])
+  @@index([participantId, completionDate])
+}
+
+model Reflection {
+  id             String           @id @default(cuid())
+  participantId  String
+  trainingEventId String
+  dueDate        DateTime
+  learned        String?
+  applyPlan      String?
+  nqsPracticeLink String?
+  status         ReflectionStatus @default(NOT_SENT)
+  submittedAt    DateTime?
+  participant    Participant      @relation(fields: [participantId], references: [id])
+  trainingEvent  TrainingEvent    @relation(fields: [trainingEventId], references: [id])
+  evidences      Evidence[]
+  createdAt      DateTime         @default(now())
+
+  @@unique([participantId, trainingEventId])
+  @@index([dueDate, status])
+}
+
+model Evidence {
+  id            String      @id @default(cuid())
+  reflectionId  String?
+  trainingEventId String?
+  completionId  String?
+  fileKey       String
+  fileName      String
+  contentType   String
+  externalUrl   String?
+  reflection    Reflection? @relation(fields: [reflectionId], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+model Certificate {
+  id            String      @id @default(cuid())
+  participantId String
+  completionId  String      @unique
+  fileKey       String?
+  externalUrl   String?
+  uploadedBy    String?
+  participant   Participant @relation(fields: [participantId], references: [id])
+  completion    Completion  @relation(fields: [completionId], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+model NQSTag {
+  id      String      @id @default(cuid())
+  code    String      @unique
+  name    String
+  events  EventNQSTag[]
+}
+
+model EYLFTag {
+  id      String       @id @default(cuid())
+  code    String       @unique
+  name    String
+  events  EventEYLFTag[]
+}
+
+model EventNQSTag {
+  eventId String
+  tagId   String
+  event   TrainingEvent @relation(fields: [eventId], references: [id])
+  tag     NQSTag        @relation(fields: [tagId], references: [id])
+
+  @@id([eventId, tagId])
+}
+
+model EventEYLFTag {
+  eventId String
+  tagId   String
+  event   TrainingEvent @relation(fields: [eventId], references: [id])
+  tag     EYLFTag       @relation(fields: [tagId], references: [id])
+
+  @@id([eventId, tagId])
+}
+
+model MagicToken {
+  id            String      @id @default(cuid())
+  token         String      @unique
+  participantId String
+  expiresAt     DateTime
+  participant   Participant @relation(fields: [participantId], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
