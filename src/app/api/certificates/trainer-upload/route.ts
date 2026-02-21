@@ -11,6 +11,17 @@ export async function POST(req: Request) {
     const event = await prisma.trainingEvent.findFirst({ where: { trainerUploadToken: data.token }, select: { id: true } });
     if (!event) throw new ApiError(403, 'Invalid token');
 
+    const completion = await prisma.completion.findUnique({
+      where: { id: data.completionId },
+      select: { trainingEventId: true, participantId: true }
+    });
+    if (!completion || completion.trainingEventId !== event.id) {
+      throw new ApiError(403, 'Completion does not belong to this event.');
+    }
+    if (completion.participantId !== data.participantId) {
+      throw new ApiError(400, 'Participant does not match completion.');
+    }
+
     return NextResponse.json(
       await prisma.certificate.upsert({
         where: { completionId: data.completionId },

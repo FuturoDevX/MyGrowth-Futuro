@@ -1,9 +1,27 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
+import { requireSession } from '@/lib/rbac';
 
 export default async function EventDetail({ params }: { params: { id: string } }) {
-  const event = await prisma.trainingEvent.findUnique({ where: { id: params.id }, include: { invites: { include: { participant: true } }, attendanceRecords: true } });
+  const session = await requireSession();
+  const isAdmin = session.user.globalRole === 'ADMIN';
+  const centreIds = (session.user.centreRoles ?? []).map((r) => r.centreId);
+
+  const event = await prisma.trainingEvent.findFirst({
+    where: {
+      id: params.id,
+      ...(isAdmin
+        ? {}
+        : {
+            OR: [
+              { centreId: { in: centreIds } },
+              { invites: { some: { participant: { userId: session.user.id } } } }
+            ]
+          })
+    },
+    include: { invites: { include: { participant: true } }, attendanceRecords: true }
+  });
   if (!event) return notFound();
   return (
     <div className="space-y-4">

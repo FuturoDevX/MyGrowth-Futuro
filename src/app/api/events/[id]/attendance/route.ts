@@ -14,6 +14,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const event = await prisma.trainingEvent.findUnique({ where: { id: params.id }, include: { trainingType: true } });
     if (!event) throw new ApiError(404, 'Event not found.');
 
+    const invited = await prisma.trainingInvite.findMany({
+      where: { trainingEventId: params.id },
+      select: { participantId: true }
+    });
+    const invitedParticipantIds = new Set(invited.map((row) => row.participantId));
+    const invalidParticipants = data.updates
+      .map((update) => update.participantId)
+      .filter((participantId) => !invitedParticipantIds.has(participantId));
+    if (invalidParticipants.length > 0) {
+      throw new ApiError(400, 'Attendance updates contain participants not invited to this event.');
+    }
+
     await prisma.$transaction(async (tx) => {
       for (const update of data.updates) {
         await tx.attendance.upsert({
